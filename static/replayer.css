@@ -1,0 +1,103 @@
+body {
+    font-family: sans-serif;
+    background-color: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.replayer-container {
+    width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.poker-table {
+    position: relative;
+    width: 700px;
+    height: 350px;
+    background-color: #006400;
+    border: 10px solid #8B4513;
+    border-radius: 175px;
+    margin: 20px auto;
+}
+
+.board {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 5px;
+}
+
+.card {
+    width: 40px;
+    height: 60px;
+    border: 1px solid #000;
+    border-radius: 5px;
+    background-color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.pot {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.2);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+.seat {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: #f0f0f0;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.player-cards {
+    display: flex;
+    gap: 2px;
+}
+
+.player-info {
+    font-size: 12px;
+}
+
+.action-log {
+    margin-top: 20px;
+    padding: 10px;
+    background: #eee;
+    border-radius: 5px;
+    height: 100px;
+    overflow-y: auto;
+}
+
+.controls {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.controls button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
