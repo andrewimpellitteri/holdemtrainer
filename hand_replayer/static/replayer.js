@@ -10,13 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchHandAndPlay() {
     try {
         const response = await axios.get('/api/hand');
-        const handHistory = response.data;
-        const replayer = new HandReplayer(handHistory);
+        const replayer = new HandReplayer(response.data);
         replayer.play();
     } catch (error) {
         console.error("Failed to fetch hand:", error);
-        const log = document.getElementById('log-content');
-        log.innerHTML = '<div class="alert alert-danger">Could not load hand data.</div>';
+        document.getElementById('log-content').innerHTML = '<div class="alert alert-danger">Could not load hand data.</div>';
     } finally {
         const playButton = document.getElementById('play-hand');
         playButton.disabled = false;
@@ -36,6 +34,7 @@ class HandReplayer {
         this.feedbackContainer = document.getElementById('feedback');
         this.clearTable();
         this.setupSeats();
+        this.showHeroCards();
     }
 
     clearTable() {
@@ -45,18 +44,23 @@ class HandReplayer {
         this.logContainer.innerHTML = '';
         this.decisionControls.style.display = 'none';
         this.feedbackContainer.innerHTML = '';
+        // Clear all player actions when table is cleared
+        document.querySelectorAll('.player-action').forEach(el => el.innerHTML = '');
     }
 
     setupSeats() {
         const numPlayers = this.handHistory.players.length;
-        const radius = 160;
+        const radiusX = 275; // Horizontal radius for ellipse
+        const radiusY = 145; // Vertical radius for ellipse
         const centerX = 340;
         const centerY = 165;
+        const seatWidth = 90;
+        const seatHeight = 90;
 
         this.handHistory.players.forEach((player, i) => {
             const angle = (i / numPlayers) * 2 * Math.PI - Math.PI / 2;
-            const x = centerX + radius * Math.cos(angle);
-            const y = centerY + radius * Math.sin(angle);
+            const x = centerX + radiusX * Math.cos(angle) - (seatWidth / 2);
+            const y = centerY + radiusY * Math.sin(angle) - (seatHeight / 2);
 
             const seat = document.createElement('div');
             seat.className = 'seat';
@@ -64,25 +68,29 @@ class HandReplayer {
             seat.style.left = `${x}px`;
             seat.style.top = `${y}px`;
 
-            let heroBadge = '';
-            if (player.id === this.handHistory.heroId) {
-                heroBadge = '<span class="badge bg-success">Hero</span>';
-            }
-
+            let badge = player.id === this.handHistory.heroId ? '<span class="badge bg-success">Hero</span>' : '';
             seat.innerHTML = `
                 <div class="player-info">
-                    <strong>${player.name} ${heroBadge}</strong>
+                    <strong>${player.name} ${badge}</strong>
                 </div>
                 <div class="player-cards"></div>
+                <div class="player-action"></div>
             `;
             this.seatsContainer.appendChild(seat);
         });
     }
 
+    showHeroCards() {
+        const heroSeat = document.getElementById(`seat-${this.handHistory.heroId}`);
+        if (heroSeat) {
+            const cardsContainer = heroSeat.querySelector('.player-cards');
+            cardsContainer.innerHTML = this.formatCards(this.handHistory.hand);
+        }
+    }
+
     play() {
         const action = this.handHistory.actions[this.actionIndex];
         if (!action) {
-            this.showHeroCards();
             this.promptForDecision();
             return;
         }
@@ -95,21 +103,33 @@ class HandReplayer {
 
     executeAction(action) {
         this.logAction(action);
+        // Update pot size display
+        this.potContainer.textContent = `Pot: ${action.pot_size}bb`;
+
+        // Clear previous action for the current player before showing new one
+        const playerActionElements = document.querySelectorAll('.player-action');
+        playerActionElements.forEach(el => el.innerHTML = '');
+
         if (action.type === 'street') {
             this.dealBoard(action.board);
-        }
-    }
-
-    showHeroCards() {
-        const heroSeat = document.getElementById(`seat-${this.handHistory.heroId}`);
-        if (heroSeat) {
-            const cardsContainer = heroSeat.querySelector('.player-cards');
-            cardsContainer.innerHTML = this.formatCards(this.handHistory.hand);
+        } else if (action.type === 'action' && action.amount) {
+            this.showPlayerAction(action.player, `${action.action} ${action.amount}`);
+        } else if (action.type === 'action') { // For actions without amount like 'check', 'fold'
+            this.showPlayerAction(action.player, action.action);
         }
     }
 
     dealBoard(cards) {
         this.boardContainer.innerHTML += cards.map(c => `<div class="card">${this.formatCard(c)}</div>`).join('');
+    }
+
+    showPlayerAction(playerId, text) {
+        const seat = document.getElementById(`seat-${playerId}`);
+        if (seat) {
+            const actionContainer = seat.querySelector('.player-action');
+            actionContainer.innerHTML = `<span class="badge bg-info">${text}</span>`;
+            // Removed setTimeout to make it persistent
+        }
     }
 
     logAction(action) {
@@ -133,11 +153,10 @@ class HandReplayer {
     }
 
     formatAction(action) {
-        switch (action.type) {
-            case 'action': return `<strong>${action.player}:</strong> ${action.action}`;
-            case 'street': return `<strong class="text-info text-capitalize">${action.street}:</strong> ${action.board.map(c => this.formatCard(c)).join(' ')}`;
-            default: return JSON.stringify(action);
+        if (action.type === 'street') {
+            return `<strong class="text-info text-capitalize">${action.street}:</strong> ${action.board.map(c => this.formatCard(c)).join(' ')}`;
         }
+        return `<strong>${action.player}:</strong> ${action.action}`;
     }
 
     promptForDecision() {
@@ -159,12 +178,9 @@ class HandReplayer {
     checkDecision(chosenMove) {
         const correctMove = this.handHistory.correct_decision;
         const isCorrect = chosenMove.toLowerCase() === correctMove.toLowerCase();
-
         this.decisionControls.innerHTML = '';
-
-        let feedbackClass = isCorrect ? 'alert-success' : 'alert-danger';
-        let feedbackMessage = isCorrect ? `Correct! The best move is to ${correctMove}.` : `Incorrect. The best move is to ${correctMove}.`;
-
+        const feedbackClass = isCorrect ? 'alert-success' : 'alert-danger';
+        const feedbackMessage = isCorrect ? `Correct! The best move is to ${correctMove}.` : `Incorrect. The best move is to ${correctMove}.`;
         this.feedbackContainer.innerHTML = `<div class="alert ${feedbackClass}">${feedbackMessage}</div>`;
     }
 }

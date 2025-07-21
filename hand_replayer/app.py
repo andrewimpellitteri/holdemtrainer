@@ -8,70 +8,71 @@ app = Flask(__name__)
 
 # --- Constants ---
 POSTFLOP_CSV_PATH = '../postflop_500k_train_set_game_scenario_information.csv'
-POSITIONS = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB']
+POSITIONS = ['SB', 'BB', 'UTG', 'HJ', 'CO', 'BTN']
 
-def get_villain_from_preflop(preflop_actions, hero_id):
-    """Find the other player involved in the pot pre-flop."""
-    participants = {preflop_actions[i] for i in range(0, len(preflop_actions), 2)}
-    villains = participants - {hero_id}
-    # In a heads-up post-flop scenario, there should be only one villain.
-    return villains.pop() if villains else None
+def get_players_in_hand(preflop_actions_raw):
+    actors = [preflop_actions_raw[i] for i in range(0, len(preflop_actions_raw), 2)]
+    if len(actors) > 1:
+        return list(set([actors[0], actors[-1]]))[:2]
+    return actors[:2]
 
 def parse_hand_history(row):
-    """Parses a postflop CSV row into a detailed, structured action sequence."""
-    hero_id = row['hero_position']
+    """Parses a postflop CSV row into a detailed, robust action sequence with pot calculation."""
     preflop_actions_raw = row['preflop_action'].split('/')
-    villain_id = get_villain_from_preflop(preflop_actions_raw, hero_id)
+    players_in_hand = get_players_in_hand(preflop_actions_raw)
+    if len(players_in_hand) < 2: players_in_hand = ['UTG', 'BB']
 
-    players = [{"id": pos, "name": pos} for pos in POSITIONS]
+    pos1_index = POSITIONS.index(players_in_hand[0]) if players_in_hand[0] in POSITIONS else -1
+    pos2_index = POSITIONS.index(players_in_hand[1]) if players_in_hand[1] in POSITIONS else -1
+    oop_player_id = players_in_hand[0] if pos1_index < pos2_index else players_in_hand[1]
+    ip_player_id = players_in_hand[1] if pos1_index < pos2_index else players_in_hand[0]
+
+    hero_id = ip_player_id if row['hero_position'] == 'IP' else oop_player_id
+    villain_id = oop_player_id if row['hero_position'] == 'IP' else ip_player_id
+
+    players = [{"id": pos, "name": pos} for pos in ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB']]
     actions = []
+    pot_size = 1.5  # SB (0.5) + BB (1.0)
 
     # 1. Pre-flop Actions
     for i in range(0, len(preflop_actions_raw), 2):
         if i + 1 < len(preflop_actions_raw):
-            actor, move = preflop_actions_raw[i], preflop_actions_raw[i+1]
-            actions.append({"type": "action", "player": actor, "action": move})
+            action_str = preflop_actions_raw[i+1]
+            amount_match = re.search(r'([0-9.]+)', action_str)
+            if amount_match:
+                pot_size += float(amount_match.group(1))
+            actions.append({"type": "action", "player": preflop_actions_raw[i], "action": action_str, "pot_size": round(pot_size, 2)})
 
-    # 2. Post-flop Actions by Street
+    # 2. Post-flop Actions
+    flop_cards = re.findall('..?', str(row['board_flop']))
+    actions.append({"type": "street", "street": "flop", "board": flop_cards, "pot_size": round(pot_size, 2)})
+
     postflop_sequence = row['postflop_action'].split('/')
-    board = []
-    
-    # Flop
-    flop_cards = row['board_flop'].split()
-    board.extend(flop_cards)
-    actions.append({"type": "street", "street": "flop", "board": flop_cards})
+    current_street = 'flop'
 
-    # Process actions until the turn card is dealt
-    turn_card_index = postflop_sequence.index('dealcards') if 'dealcards' in postflop_sequence else len(postflop_sequence)
-    for action_str in postflop_sequence[:turn_card_index]:
-        parts = action_str.split('_')
-        actor_id = hero_id if parts[0] == row['aggressor_position'] else villain_id
-        actions.append({"type": "action", "player": actor_id, "action": f"{parts[1].lower()} {parts[2] if len(parts) > 2 else ''}".strip()})
+    for action_str in postflop_sequence:
+        if not action_str: continue
 
-    # Turn
-    if 'dealcards' in postflop_sequence:
-        turn_card = row['board_turn']
-        board.append(turn_card)
-        actions.append({"type": "street", "street": "turn", "board": [turn_card]})
-        
-        # Process actions between turn and river
-        river_card_index = postflop_sequence.index('dealcards', turn_card_index + 1) if 'dealcards' in postflop_sequence[turn_card_index+1:] else len(postflop_sequence)
-        for action_str in postflop_sequence[turn_card_index + 2:river_card_index]:
+        if action_str == 'dealcards':
+            board_card = ""
+            if current_street == 'flop':
+                current_street = 'turn'
+                board_card = row['board_turn']
+            elif current_street == 'turn':
+                current_street = 'river'
+                board_card = row['board_river']
+            actions.append({"type": "street", "street": current_street, "board": [board_card], "pot_size": round(pot_size, 2)})
+        else:
             parts = action_str.split('_')
-            actor_id = hero_id if parts[0] == row['aggressor_position'] else villain_id
-            actions.append({"type": "action", "player": actor_id, "action": f"{parts[1].lower()} {parts[2] if len(parts) > 2 else ''}".strip()})
-
-    # River
-    if 'board_river' in row and pd.notna(row['board_river']):
-        river_card = row['board_river']
-        if river_card not in board:
-            board.append(river_card)
-            actions.append({"type": "street", "street": "river", "board": [river_card]})
-            # Process final actions
-            for action_str in postflop_sequence[river_card_index + 2:]:
-                parts = action_str.split('_')
-                actor_id = hero_id if parts[0] == row['aggressor_position'] else villain_id
-                actions.append({"type": "action", "player": actor_id, "action": f"{parts[1].lower()} {parts[2] if len(parts) > 2 else ''}".strip()})
+            if len(parts) < 2: continue
+            
+            actor_label = parts[0]
+            player_id = ip_player_id if actor_label == 'IP' else oop_player_id
+            move = parts[1].lower()
+            amount = float(parts[2]) if len(parts) > 2 else 0
+            pot_size += amount
+            
+            actions.append({"type": "action", "player": player_id, "action": move, "amount": amount, "pot_size": round(pot_size, 2)})
 
     return {
         "players": players,
@@ -93,8 +94,9 @@ def get_hand():
         hand_data = df.sample(1).iloc[0]
         parsed_hand = parse_hand_history(hand_data)
         return jsonify(parsed_hand)
-    except (FileNotFoundError, KeyError) as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        print(f"Error processing hand: {e}")
+        return jsonify({"error": "Failed to parse hand history.", "details": str(e)}), 500
 
 if __name__ == '__main__':
     if not os.path.exists('templates'):

@@ -23,7 +23,7 @@ body {
     left: 50%;
     transform: translate(-50%, -50%);
     display: flex;
-    gap: 5px;
+    gap: 8px; /* Increased gap for board cards */
 }
 
 .card {
@@ -41,7 +41,7 @@ body {
 
 .pot {
     position: absolute;
-    bottom: 20px;
+    bottom: 40px; /* Moved up from 20px */
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0,0,0,0.3);
@@ -72,7 +72,7 @@ body {
 
 .player-cards {
     display: flex;
-    gap: 3px;
+    gap: 8px; /* Increased gap for player cards */
     margin-top: 5px;
 }
 
