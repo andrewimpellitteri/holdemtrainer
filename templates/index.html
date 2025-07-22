@@ -83,14 +83,9 @@
                 <div class="card-body text-center">
                     <h5 class="card-title">Ready to improve your poker game?</h5>
                     <p class="card-text">Start with our training scenarios to learn optimal decision-making in various poker situations.</p>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                        <a href="{{ url_for('train') }}" class="btn btn-primary btn-lg">
-                            <i class="fas fa-play"></i> Start Training
-                        </a>
-                        <a href="{{ url_for('analysis') }}" class="btn btn-outline-primary btn-lg">
-                            <i class="fas fa-chart-bar"></i> View Analysis
-                        </a>
-                    </div>
+                            <a href="{{ url_for('replayer') }}" class="btn btn-primary btn-lg" target="_blank">
+            <i class="fas fa-history"></i> Launch Hand Replayer
+        </a>
                 </div>
             </div>
         </div>
